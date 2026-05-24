@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import signal
 
 import numpy as np
+import websockets
 
 from .audio_engine import AudioEngine
 from .config import (
@@ -204,23 +204,26 @@ class ClaudeSpeakHub:
         await self.setup()
         await self.audio.start()
 
+        self._ws_server = await websockets.serve(
+            self.server._handle_client, "0.0.0.0", HUB_PORT
+        )
+
         logger.info("=" * 40)
         logger.info("ClaudeSpeak Hub running on ws://0.0.0.0:%d", HUB_PORT)
-        logger.info("Press Ctrl+Shift+V to activate (or send 'command' via WS)")
+        logger.info("Press Ctrl+C to stop")
         logger.info("=" * 40)
 
-        # Block until shutdown
-        stop = asyncio.Event()
-        loop = asyncio.get_event_loop()
-        loop.add_signal_handler(signal.SIGINT, stop.set)
-        loop.add_signal_handler(signal.SIGTERM, stop.set)
-
-        await stop.wait()
+        try:
+            await self._ws_server.wait_closed()
+        except KeyboardInterrupt:
+            pass
         await self.shutdown()
 
     async def shutdown(self) -> None:
         logger.info("Shutting down...")
         self.state.state = HubState.IDLE
+        self._ws_server.close()
+        await self._ws_server.wait_closed()
         await self.audio.stop()
         self.store.close()
         logger.info("Goodbye.")

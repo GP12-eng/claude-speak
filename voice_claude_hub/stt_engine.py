@@ -40,11 +40,11 @@ class STTEngine:
             from faster_whisper import WhisperModel
 
             self._model = WhisperModel(
-                "medium",
+                "tiny",
                 device="cpu",
                 compute_type="int8",
             )
-            logger.info("faster-whisper medium loaded")
+            logger.info("faster-whisper tiny loaded (switch to medium for better accuracy)")
         else:
             raise ValueError(f"Unknown STT model: {model_type}")
 

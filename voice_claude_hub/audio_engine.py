@@ -24,7 +24,11 @@ class AudioEngine:
         loop: asyncio.AbstractEventLoop | None = None,
     ) -> None:
         self.sample_rate = sample_rate
-        self.device = device
+        # sounddevice accepts int index or string name
+        try:
+            self.device: int | str = int(device) if isinstance(device, str) and device.isdigit() else device
+        except ValueError:
+            self.device = device
         self.silence_frames = silence_ms // FRAME_MS
         self._loop = loop or asyncio.get_event_loop()
 

@@ -32,8 +32,8 @@ def get(key: str, default: str = "") -> str:
 
 # --- Audio ---
 SAMPLE_RATE: int = int(get("SAMPLE_RATE", "16000"))
-AUDIO_INPUT_DEVICE: str = get("AUDIO_INPUT_DEVICE", "default")
-AUDIO_OUTPUT_DEVICE: str = get("AUDIO_OUTPUT_DEVICE", "default")
+AUDIO_INPUT_DEVICE: str | int = int(get("AUDIO_INPUT_DEVICE", "0") or "0")  # 0 = system default input
+AUDIO_OUTPUT_DEVICE: str | int = int(get("AUDIO_OUTPUT_DEVICE", "0") or "0")  # 0 = system default output
 VAD_SILENCE_MS: int = int(get("VAD_SILENCE_MS", "800"))
 
 # --- AI ---
