@@ -37,6 +37,9 @@ AUDIO_OUTPUT_DEVICE: str = get("AUDIO_OUTPUT_DEVICE", "default")
 VAD_SILENCE_MS: int = int(get("VAD_SILENCE_MS", "800"))
 
 # --- AI ---
+LLM_PROVIDER: str = get("LLM_PROVIDER", "deepseek")  # deepseek | anthropic
+DEEPSEEK_API_KEY: str = get("DEEPSEEK_API_KEY", "")
+DEEPSEEK_MODEL: str = get("DEEPSEEK_MODEL", "deepseek-chat")
 ANTHROPIC_API_KEY: str = get("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL: str = get("CLAUDE_MODEL", "claude-sonnet-4-6")
 SYSTEM_PROMPT: str = get("SYSTEM_PROMPT", "你是一个友好的语音编程助手，回复简洁有力。用中文回答。")

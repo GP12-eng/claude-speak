@@ -13,7 +13,10 @@ from .config import (
     AUDIO_INPUT_DEVICE,
     AUDIO_OUTPUT_DEVICE,
     CLAUDE_MODEL,
+    DEEPSEEK_API_KEY,
+    DEEPSEEK_MODEL,
     HUB_PORT,
+    LLM_PROVIDER,
     MAX_HISTORY_TURNS,
     SAMPLE_RATE,
     SYSTEM_PROMPT,
@@ -29,10 +32,21 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger("claudespeak")
 
 
-# ---- Serverless Claude API call (no VSCode needed) ----
+# ---- LLM API calls ----
+
+async def call_deepseek(messages: list[dict], api_key: str, model: str) -> str:
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    response = await client.chat.completions.create(
+        model=model,
+        max_tokens=1024,
+        messages=messages,
+    )
+    return response.choices[0].message.content or ""
+
 
 async def call_claude(messages: list[dict], api_key: str, model: str) -> str:
-    """Fallback: call Claude API directly when VSCode bridge is not connected."""
     from anthropic import AsyncAnthropic
 
     client = AsyncAnthropic(api_key=api_key)
@@ -42,6 +56,13 @@ async def call_claude(messages: list[dict], api_key: str, model: str) -> str:
         messages=messages,
     )
     return response.content[0].text
+
+
+async def call_llm(messages: list[dict]) -> str:
+    if LLM_PROVIDER == "deepseek":
+        return await call_deepseek(messages, DEEPSEEK_API_KEY, DEEPSEEK_MODEL)
+    else:
+        return await call_claude(messages, ANTHROPIC_API_KEY, CLAUDE_MODEL)
 
 
 # ---- Main app ----
@@ -58,7 +79,6 @@ class ClaudeSpeakHub:
         )
         self.stt = STTEngine(sample_rate=SAMPLE_RATE)
         self.tts = TTSEngine(sample_rate=SAMPLE_RATE, device=AUDIO_OUTPUT_DEVICE)
-        self._claude_key = ANTHROPIC_API_KEY
 
     async def setup(self) -> None:
         # Register WS handlers
@@ -123,7 +143,7 @@ class ClaudeSpeakHub:
             # In Phase 1, we use direct API for reliability
             messages = self.state.build_messages(SYSTEM_PROMPT, MAX_HISTORY_TURNS)
             try:
-                response = await call_claude(messages, self._claude_key, CLAUDE_MODEL)
+                response = await call_llm(messages)
             except Exception as e:
                 logger.error("Claude API failed: %s", e)
                 await self.server.registry.broadcast("error", {"code": "LLM_FAILED", "message": str(e)})
@@ -132,7 +152,7 @@ class ClaudeSpeakHub:
         else:
             messages = self.state.build_messages(SYSTEM_PROMPT, MAX_HISTORY_TURNS)
             try:
-                response = await call_claude(messages, self._claude_key, CLAUDE_MODEL)
+                response = await call_llm(messages)
             except Exception as e:
                 logger.error("Claude API failed: %s", e)
                 await self.server.registry.broadcast("error", {"code": "LLM_FAILED", "message": str(e)})
