@@ -73,15 +73,28 @@ class TTSEngine:
             Path(wav_path).unlink(missing_ok=True)
 
     async def play(self, audio: io.BytesIO) -> None:
-        """Play MP3 audio via sounddevice."""
-        import soundfile as sf
+        """Play MP3 audio via subprocess (Windows)."""
+        import subprocess
+        import tempfile
 
-        audio.seek(0)
-        data, sr = sf.read(audio)
-        if data.ndim > 1:
-            data = data.mean(axis=1)
-        sd.play(data, sr, device=self.device)
-        sd.wait()
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            f.write(audio.read())
+            tmp_path = f.name
+
+        try:
+            # Windows: use mplay32 or direct show
+            subprocess.run(
+                ["cmd", "/c", "start", "/min", "wmplayer", tmp_path, "/play", "/close"],
+                timeout=60,
+            )
+        except Exception:
+            import os
+            os.startfile(tmp_path)
+        finally:
+            # Cleanup after playback delay
+            import time
+            time.sleep(5)
+            Path(tmp_path).unlink(missing_ok=True)
 
     async def fade_out_and_stop(self) -> None:
         """10ms linear fade-out for barge-in."""

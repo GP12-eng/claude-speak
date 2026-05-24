@@ -18,12 +18,16 @@ def _find_env() -> str | None:
     return None
 
 
-def load_config() -> None:
+def _init_config() -> None:
     env_path = _find_env()
     if env_path:
         load_dotenv(env_path)
     else:
         print("Warning: .env not found, using defaults")
+
+
+# Load .env BEFORE reading any values
+_init_config()
 
 
 def get(key: str, default: str = "") -> str:
@@ -32,12 +36,19 @@ def get(key: str, default: str = "") -> str:
 
 # --- Audio ---
 SAMPLE_RATE: int = int(get("SAMPLE_RATE", "16000"))
-AUDIO_INPUT_DEVICE: str | int = int(get("AUDIO_INPUT_DEVICE", "0") or "0")  # 0 = system default input
-AUDIO_OUTPUT_DEVICE: str | int = int(get("AUDIO_OUTPUT_DEVICE", "0") or "0")  # 0 = system default output
+def _parse_device(val: str) -> int | str:
+    try:
+        return int(val)
+    except ValueError:
+        return val
+
+
+AUDIO_INPUT_DEVICE: int | str = _parse_device(get("AUDIO_INPUT_DEVICE", "0"))
+AUDIO_OUTPUT_DEVICE: int | str = _parse_device(get("AUDIO_OUTPUT_DEVICE", "0"))
 VAD_SILENCE_MS: int = int(get("VAD_SILENCE_MS", "800"))
 
 # --- AI ---
-LLM_PROVIDER: str = get("LLM_PROVIDER", "deepseek")  # deepseek | anthropic
+LLM_PROVIDER: str = get("LLM_PROVIDER", "deepseek")
 DEEPSEEK_API_KEY: str = get("DEEPSEEK_API_KEY", "")
 DEEPSEEK_MODEL: str = get("DEEPSEEK_MODEL", "deepseek-chat")
 ANTHROPIC_API_KEY: str = get("ANTHROPIC_API_KEY", "")
@@ -48,6 +59,3 @@ MAX_HISTORY_TURNS: int = int(get("MAX_HISTORY_TURNS", "20"))
 
 # --- Network ---
 HUB_PORT: int = int(get("HUB_PORT", "9877"))
-
-# Load on import
-load_config()

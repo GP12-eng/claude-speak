@@ -85,6 +85,7 @@ class ClaudeSpeakHub:
         self.server.on("barge_in")(self._handle_barge_in)
         self.server.on("command")(self._handle_command)
         self.server.on("audio.chunk")(self._handle_mobile_audio)
+        self.server.on("text.transcribed")(self._handle_text_from_ws)
 
         # Wire audio callbacks
         self.audio.on_speech_start = self._on_speech_start
@@ -105,64 +106,28 @@ class ClaudeSpeakHub:
         self.state.state = HubState.LISTENING
         await self.server.registry.broadcast("state.change", {"state": self.state.state.value})
 
-    async def _on_speech_end(self, audio_data: np.ndarray) -> None:
-        if self.state.state != HubState.LISTENING:
-            return
-
+    async def _process_user_text(self, text: str) -> None:
+        """Process transcribed text: send to LLM, TTS the response."""
         self.state.state = HubState.THINKING
         await self.server.registry.broadcast("state.change", {"state": self.state.state.value})
 
-        # STT
+        logger.info("Processing: %s", text)
+        self.state.add_user_turn(text)
+        await self.server.registry.broadcast("text.transcribed", {"text": text, "is_final": True})
+
+        messages = self.state.build_messages(SYSTEM_PROMPT, MAX_HISTORY_TURNS)
         try:
-            text = await self.stt.transcribe(audio_data)
-            if not text.strip():
-                self.state.state = HubState.IDLE
-                await self.server.registry.broadcast("state.change", {"state": HubState.IDLE.value})
-                return
+            response = await call_llm(messages)
         except Exception as e:
-            logger.error("STT failed: %s", e)
-            await self.server.registry.broadcast("error", {"code": "STT_FAILED", "message": str(e)})
+            logger.error("LLM failed: %s", e)
+            await self.server.registry.broadcast("error", {"code": "LLM_FAILED", "message": str(e)})
             self.state.state = HubState.IDLE
             return
 
-        logger.info("Transcribed: %s", text)
-        self.state.add_user_turn(text)
-
-        # Try VSCode bridge first, fall back to direct Claude API
-        response = ""
-        vscode_connected = any(
-            c.client_type.value == "vscode"
-            for c in self.server.registry._clients.values()
-        )
-
-        if vscode_connected:
-            # Send to VSCode bridge, wait for response
-            await self.server.registry.broadcast("text.transcribed", {"text": text, "is_final": True})
-            # VSCode will send back text.response — captured in WS handler below
-            # For synchronous flow, use direct API as fallback while waiting
-            # In Phase 1, we use direct API for reliability
-            messages = self.state.build_messages(SYSTEM_PROMPT, MAX_HISTORY_TURNS)
-            try:
-                response = await call_llm(messages)
-            except Exception as e:
-                logger.error("Claude API failed: %s", e)
-                await self.server.registry.broadcast("error", {"code": "LLM_FAILED", "message": str(e)})
-                self.state.state = HubState.IDLE
-                return
-        else:
-            messages = self.state.build_messages(SYSTEM_PROMPT, MAX_HISTORY_TURNS)
-            try:
-                response = await call_llm(messages)
-            except Exception as e:
-                logger.error("Claude API failed: %s", e)
-                await self.server.registry.broadcast("error", {"code": "LLM_FAILED", "message": str(e)})
-                self.state.state = HubState.IDLE
-                return
-
         self.state.add_assistant_turn(response)
+        logger.info("Response: %s", response[:100])
         await self.server.registry.broadcast("text.response", {"text": response, "is_streaming": False})
 
-        # TTS
         self.state.state = HubState.SPEAKING
         await self.server.registry.broadcast("state.change", {"state": HubState.SPEAKING.value})
 
@@ -175,6 +140,29 @@ class ClaudeSpeakHub:
         self.state.state = HubState.IDLE
         self.state.reset_for_new_turn()
         await self.server.registry.broadcast("state.change", {"state": HubState.IDLE.value})
+
+    async def _on_speech_end(self, audio_data: np.ndarray) -> None:
+        if self.state.state != HubState.LISTENING:
+            return
+
+        try:
+            text = await self.stt.transcribe(audio_data)
+            if not text.strip():
+                self.state.state = HubState.IDLE
+                return
+        except Exception as e:
+            logger.error("STT failed: %s", e)
+            await self.server.registry.broadcast("error", {"code": "STT_FAILED", "message": str(e)})
+            self.state.state = HubState.IDLE
+            return
+
+        await self._process_user_text(text)
+
+    async def _handle_text_from_ws(self, client_id: str, payload: dict) -> None:
+        """Handle text.transcribed from WebSocket clients (VSCode, test)."""
+        text = payload.get("text", "")
+        if text.strip():
+            await self._process_user_text(text)
 
     async def _on_decibel(self, level: float) -> None:
         await self.server.registry.broadcast("decibel.level", {"level": level, "source": "desktop"})
