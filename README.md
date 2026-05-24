@@ -4,7 +4,7 @@ Talk to Claude Code. Naturally. Like a phone call.
 
 A full-duplex voice interface that lets developers speak to Claude Code instead of typing. Floating desktop ball, wake word activation, real-time STT/TTS, barge-in support, VSCode deep integration, and mobile PWA remote access.
 
-**Currently in design/development. 1 person + Claude Code.**
+**Phase 1 in progress. Hub + Audio + STT + TTS + VSCode bridge written. 1 person + Claude Code.**
 
 ## The Problem
 
@@ -55,19 +55,39 @@ Hub-Spoke architecture. Desktop is the brain (all AI processing). Clients are pu
 | Audio I/O | sounddevice |
 | Hub IPC | WebSocket (typed JSON + binary frames) |
 
-## Phases
+## Project Structure
 
-- **Phase 1** (Week 1-2): Hub core pipeline — shortcut activation, STT → Claude Code → TTS
-- **Phase 2** (Week 3): Floating ball UI + wake word
-- **Phase 3** (Week 4): Full-duplex + barge-in
-- **Phase 4** (Week 5): Mobile PWA remote access
+```
+voice_claude_hub/
+  main.py              # Entry point: wires Hub + Audio + STT + Claude + TTS
+  config.py            # .env loader + device discovery
+  models.py            # Pydantic WebSocket message types
+  session_manager.py   # State machine (IDLE→LISTENING→THINKING→SPEAKING) + SQLite history
+  ws_server.py         # WebSocket server + client registry + message dispatch
+  audio_engine.py      # sounddevice mic capture + Silero VAD + decibel meter
+  stt_engine.py        # faster-whisper medium (SenseVoice-Small when network allows)
+  tts_engine.py        # edge-tts + Piper-TTS fallback
+vscode-voice-bridge/
+  src/extension.ts     # VSCode extension: receives text, runs `claude -p`, returns response
+requirements.txt
+.env.example
+```
 
-## Getting Started (coming soon)
+## Getting Started
 
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-python -m claude_speak.main
+
+# Set your API key
+cp .env.example .env
+# Edit .env → add ANTHROPIC_API_KEY
+
+# Start the Hub
+python -m voice_claude_hub.main
 ```
+
+Hub starts on `ws://localhost:9877`. Press Ctrl+Shift+V to activate (Phase 1 — shortcut activation).
 
 ## Built by
 

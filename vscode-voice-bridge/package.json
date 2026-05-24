@@ -1,0 +1,49 @@
+{
+  "name": "claudespeak-bridge",
+  "displayName": "ClaudeSpeak Bridge",
+  "description": "Voice bridge between ClaudeSpeak Hub and Claude Code in VSCode",
+  "version": "0.1.0",
+  "publisher": "gpi",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "activationEvents": [
+    "onCommand:claudespeak.connect"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudespeak.connect",
+        "title": "ClaudeSpeak: Connect to Hub"
+      },
+      {
+        "command": "claudespeak.disconnect",
+        "title": "ClaudeSpeak: Disconnect"
+      }
+    ],
+    "configuration": {
+      "title": "ClaudeSpeak",
+      "properties": {
+        "claudespeak.hubUrl": {
+          "type": "string",
+          "default": "ws://localhost:9877",
+          "description": "ClaudeSpeak Hub WebSocket URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
